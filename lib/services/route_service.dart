@@ -86,7 +86,7 @@ class RouteService {
             trip_id,
             start_time,
             end_time,
-            bus_master (
+            bus_master!trip_bus_id_fkey (
               bus_id,
               name
             )
