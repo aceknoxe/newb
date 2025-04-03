@@ -10,7 +10,8 @@ class RouteService {
           .from('transmitter_data')
           .select('''
             *,
-            bus_stop (*)
+            bus_stop (*),
+            trip!inner (route (route_stops (bus_stop (*))))
           ''')
           .eq('trip_id', tripId)
           .order('actual_time', ascending: false)
@@ -21,9 +22,78 @@ class RouteService {
       }
 
       final lastLocation = transmitterResponse[0];
+      final currentStopOrder = lastLocation['stop_order'];
+      final routeStops = lastLocation['trip']['route']['route_stops'] as List;
+      final totalStops = routeStops.length;
+      
+      debugPrint('Current stop order: $currentStopOrder, Total stops: $totalStops');
+      
+      // Get the last stop from route_stops
+      final lastRouteStop = routeStops.lastWhere(
+        (stop) => stop['sequence'] == totalStops,
+        orElse: () => null,
+      );
+      
+      debugPrint('Last route stop found: ${lastRouteStop != null}');
+      
+      // Check if we're at the last stop or first stop
+      bool isLastStop = currentStopOrder == totalStops;
+      bool isFirstStop = currentStopOrder == 1;
+      
+      debugPrint('Is last stop: $isLastStop, Is first stop: $isFirstStop');
+      
+      // Set direction immediately if at last or first stop
+      if (isLastStop) {
+        debugPrint('Bus is at last stop. Setting direction to 180 degrees for return journey.');
+        return {
+          'stopName': lastLocation['bus_stop']['name'],
+          'actualTime': lastLocation['actual_time'],
+          'stopOrder': currentStopOrder,
+          'totalStops': totalStops,
+          'direction': 180, // Force 180 degrees at last stop for return journey
+          'isLastStop': true,
+        };
+      } else if (isFirstStop) {
+        return {
+          'stopName': lastLocation['bus_stop']['name'],
+          'actualTime': lastLocation['actual_time'],
+          'stopOrder': currentStopOrder,
+          'totalStops': totalStops,
+          'direction': 0, // Force 0 degrees at first stop
+        };
+      }
+      
+      // For intermediate stops, determine direction based on previous location
+      bool isForward;
+      final previousLocationResponse = await _supabaseClient
+          .from('transmitter_data')
+          .select()
+          .eq('trip_id', tripId)
+          .order('actual_time', ascending: false)
+          .range(1, 1);
+      
+      debugPrint('Previous location data found: ${previousLocationResponse != null && previousLocationResponse.isNotEmpty}');
+      
+      if (previousLocationResponse != null && previousLocationResponse.isNotEmpty) {
+        final prevStopOrder = previousLocationResponse[0]['stop_order'];
+        isForward = currentStopOrder > prevStopOrder;
+        debugPrint('Previous stop order: $prevStopOrder, Current stop order: $currentStopOrder');
+        debugPrint('Direction determined from previous location: ${isForward ? "forward (0°)" : "return (180°)"}');
+      } else {
+        // If no previous data, assume direction based on position in route
+        isForward = currentStopOrder < (totalStops / 2);
+        debugPrint('No previous location data. Assuming direction based on route position.');
+        debugPrint('Current position relative to route: ${isForward ? "first half (forward)" : "second half (return)"}');
+      }
+      
+      final direction = isForward ? 0 : 180;
+      
       return {
         'stopName': lastLocation['bus_stop']['name'],
         'actualTime': lastLocation['actual_time'],
+        'stopOrder': currentStopOrder,
+        'totalStops': totalStops,
+        'direction': direction,
       };
     } catch (e) {
       debugPrint('Error fetching current bus location: $e');

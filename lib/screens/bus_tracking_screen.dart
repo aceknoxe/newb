@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/route_service.dart';
 import 'dart:async';
+import 'dart:math' show pi, cos, sin;
 
 class BusTrackingScreen extends StatefulWidget {
   const BusTrackingScreen({
@@ -169,6 +170,7 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> {
 class RouteMapPainter extends CustomPainter {
   final List<Map<String, dynamic>> busStops;
   final Map<String, dynamic> currentLocation;
+  Path? arrowPath;
 
   RouteMapPainter({
     required this.busStops,
@@ -180,6 +182,21 @@ class RouteMapPainter extends CustomPainter {
     final other = oldDelegate as RouteMapPainter;
     return busStops.length != other.busStops.length ||
            currentLocation.toString() != other.currentLocation.toString();
+  }
+
+
+
+  String _formatTime(String time) {
+    try {
+      final parts = time.split(':');
+      if (parts.length >= 2) {
+        return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+      }
+      return time;
+    } catch (e) {
+      debugPrint('Error parsing time: $e');
+      return 'Invalid time';
+    }
   }
 
   @override
@@ -201,8 +218,8 @@ class RouteMapPainter extends CustomPainter {
     final double availableHeight = size.height - (padding * 2);
     final double stopRadius = 8;
     final double currentLocationRadius = 12;
-    final double lineX = size.width * 0.2; // Moved line to 20% from left
-
+    final double lineX = size.width * 0.2;
+    
     // Draw the vertical route line
     canvas.drawLine(
       Offset(lineX, padding),
@@ -285,6 +302,108 @@ class RouteMapPainter extends CustomPainter {
           currentLocationPaint,
         );
 
+        // Draw bus icon
+        if (currentLocation.containsKey('direction')) {
+          final double busSize = 24.0;
+          
+          // Draw bus circle background
+          canvas.drawCircle(
+            stopCenter,
+            busSize / 2,
+            Paint()
+              ..color = Colors.white
+              ..style = PaintingStyle.fill
+          );
+          
+          // Draw bus icon with direction arrow
+          final busIconPath = Path()
+            ..addRRect(RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                center: stopCenter,
+                width: busSize * 0.8,
+                height: busSize * 0.5,
+              ),
+              const Radius.circular(4),
+            ));
+
+          // Add direction arrow
+          if (currentLocation.containsKey('direction')) {
+            final arrowSize = busSize * 1.2; // Increased arrow size
+            final arrowCenter = Offset(
+              stopCenter.dx,
+              stopCenter.dy + (busSize * 0.6) // Changed from minus to plus to move arrow below
+            );
+            
+            final bool isAtFirstStop = i == 0;
+            final Path directionArrowPath = Path();
+            
+            if (isAtFirstStop) {
+              // Draw downward pointing arrow at first stop
+              directionArrowPath
+                ..moveTo(
+                  arrowCenter.dx,
+                  arrowCenter.dy + arrowSize * 0.5
+                )
+                ..lineTo(
+                  arrowCenter.dx - arrowSize * 0.3,
+                  arrowCenter.dy - arrowSize * 0.2
+                )
+                ..quadraticBezierTo(
+                  arrowCenter.dx,
+                  arrowCenter.dy,
+                  arrowCenter.dx + arrowSize * 0.3,
+                  arrowCenter.dy - arrowSize * 0.2
+                )
+                ..close();
+            } else {
+              // Draw upward pointing arrow for other stops
+              directionArrowPath
+                ..moveTo(
+                  arrowCenter.dx,
+                  arrowCenter.dy - arrowSize * 0.5
+                )
+                ..lineTo(
+                  arrowCenter.dx - arrowSize * 0.3,
+                  arrowCenter.dy + arrowSize * 0.2
+                )
+                ..quadraticBezierTo(
+                  arrowCenter.dx,
+                  arrowCenter.dy,
+                  arrowCenter.dx + arrowSize * 0.3,
+                  arrowCenter.dy + arrowSize * 0.2
+                )
+                ..close();
+            }
+
+            // Add outline to make arrow more visible
+            canvas.drawPath(
+              directionArrowPath,
+              Paint()
+                ..color = Colors.white
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2.0
+            );
+
+            arrowPath = directionArrowPath;
+          
+            canvas.drawPath(
+              busIconPath,
+              Paint()
+                ..color = const Color(0xFF2196F3)
+                ..style = PaintingStyle.fill
+            );
+
+            if (arrowPath != null) {
+              canvas.drawPath(
+                arrowPath!,
+                Paint()
+                  ..color = const Color(0xFF2196F3)
+                  ..style = PaintingStyle.fill
+              );
+            }
+          }
+        }
+
         // Draw current time with background
         if (currentLocation['actualTime'] != null) {
           final timeTextPainter = TextPainter(
@@ -321,20 +440,19 @@ class RouteMapPainter extends CustomPainter {
         }
       }
     }
-  }
-
-  String _formatTime(String time) {
-    try {
-      final parts = time.split(':');
-      if (parts.length >= 2) {
-        return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
-      }
-      return time;
-    } catch (e) {
-      debugPrint('Error parsing time: $e');
-      return 'Invalid time';
+    
+    // Draw direction arrow at the end if it exists
+    if (arrowPath != null) {
+      canvas.drawPath(
+        arrowPath!,
+        Paint()
+          ..color = const Color(0xFF5CB338)
+          ..style = PaintingStyle.fill
+      );
     }
   }
+
+
 }
 
 class BusInfoCard extends StatelessWidget {
