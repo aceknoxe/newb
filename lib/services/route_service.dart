@@ -139,31 +139,27 @@ class RouteService {
           .from('route')
           .select('''
             route_id,
-            route_stops!inner (sequence, bus_stop!inner(name)),
-            route_stops (sequence, bus_stop (name))
-          ''')
-          .or('bus_stop.name.ilike.%${startLocation}%,bus_stop.name.ilike.%${endLocation}%');
+            route_stops!inner (stop_order, bus_stop!inner (name))
+          ''');
+
 
       if (routeResponse == null || (routeResponse as List).isEmpty) {
-        debugPrint('No route found between $startLocation and $endLocation');
+        debugPrint('No routes found');
         return [];
       }
 
-      // Filter routes where both stops exist and are in correct sequence
+      // Filter routes that contain all the required stops in correct sequence
       final validRoutes = (routeResponse as List).where((route) {
-        final routeStops = (route['route_stops'] as List);
-        // Sort stops by sequence to ensure correct order
-        routeStops.sort((a, b) => (a['sequence'] as num).compareTo(b['sequence'] as num));
+        final routeStops = (route['route_stops'] as List)..sort((a, b) => ((a['stop_order'] as num?) ?? 0).compareTo((b['stop_order'] as num?) ?? 0));
+        final stopNames = routeStops.map((stop) => stop['bus_stop']['name'].toString().toLowerCase()).toList();
+        final startIdx = stopNames.indexWhere((name) => name.contains(startLocation.toLowerCase()));
+        final endIdx = stopNames.indexWhere((name) => name.contains(endLocation.toLowerCase()));
         
-        final stops = routeStops.map((stop) => stop['bus_stop']['name']).toList();
-        final startIndex = stops.indexWhere((stop) => stop.toLowerCase().contains(startLocation.toLowerCase()));
-        final endIndex = stops.indexWhere((stop) => stop.toLowerCase().contains(endLocation.toLowerCase()));
-        
-        return startIndex != -1 && endIndex != -1 && startIndex < endIndex;
+        return startIdx != -1 && endIdx != -1 && startIdx < endIdx;
       }).toList();
 
       if (validRoutes.isEmpty) {
-        debugPrint('No valid route found with correct stop sequence');
+        debugPrint('No route found between $startLocation and $endLocation');
         return [];
       }
 
@@ -186,7 +182,7 @@ class RouteService {
       return (tripResponse as List).map((trip) {
         // Get all stops for this route in sequence order
         final routeStops = (validRoutes[0]['route_stops'] as List);
-        routeStops.sort((a, b) => (a['sequence'] as num).compareTo(b['sequence'] as num));
+        routeStops.sort((a, b) => (a['stop_order'] as num).compareTo(b['stop_order'] as num));
         final allStops = routeStops.map((stop) => stop['bus_stop']['name']).toList();
 
         return {
