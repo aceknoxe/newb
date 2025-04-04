@@ -134,20 +134,40 @@ class RouteService {
     String endLocation,
   ) async {
     try {
-      // Find the route_id for the given locations
+      // Find routes that contain both stops in their sequence
       final routeResponse = await _supabaseClient
           .from('route')
-          .select()
-          .or('start_location.eq.${startLocation},start_location.eq.Location ${startLocation}')
-          .or('stop_location.eq.${endLocation},stop_location.eq.Location ${endLocation}')
-          .limit(1);
+          .select('''
+            route_id,
+            route_stops!inner (sequence, bus_stop!inner(name)),
+            route_stops (sequence, bus_stop (name))
+          ''')
+          .or('bus_stop.name.ilike.%${startLocation}%,bus_stop.name.ilike.%${endLocation}%');
 
       if (routeResponse == null || (routeResponse as List).isEmpty) {
         debugPrint('No route found between $startLocation and $endLocation');
         return [];
       }
 
-      final routeId = routeResponse[0]['route_id'];
+      // Filter routes where both stops exist and are in correct sequence
+      final validRoutes = (routeResponse as List).where((route) {
+        final routeStops = (route['route_stops'] as List);
+        // Sort stops by sequence to ensure correct order
+        routeStops.sort((a, b) => (a['sequence'] as num).compareTo(b['sequence'] as num));
+        
+        final stops = routeStops.map((stop) => stop['bus_stop']['name']).toList();
+        final startIndex = stops.indexWhere((stop) => stop.toLowerCase().contains(startLocation.toLowerCase()));
+        final endIndex = stops.indexWhere((stop) => stop.toLowerCase().contains(endLocation.toLowerCase()));
+        
+        return startIndex != -1 && endIndex != -1 && startIndex < endIndex;
+      }).toList();
+
+      if (validRoutes.isEmpty) {
+        debugPrint('No valid route found with correct stop sequence');
+        return [];
+      }
+
+      final routeId = validRoutes[0]['route_id'];
 
       // Then, get all trips for this route
       final tripResponse = await _supabaseClient
@@ -164,12 +184,18 @@ class RouteService {
           .eq('route_id', routeId);
 
       return (tripResponse as List).map((trip) {
+        // Get all stops for this route in sequence order
+        final routeStops = (validRoutes[0]['route_stops'] as List);
+        routeStops.sort((a, b) => (a['sequence'] as num).compareTo(b['sequence'] as num));
+        final allStops = routeStops.map((stop) => stop['bus_stop']['name']).toList();
+
         return {
           'busNumber': trip['bus_master']['name'],
           'departureTime': trip['start_time'],
           'arrivalTime': trip['end_time'],
           'busId': trip['bus_master']['bus_id'],
           'tripId': trip['trip_id'],
+          'allStops': allStops, // Include all stops in the route
         };
       }).toList();
     } catch (e) {

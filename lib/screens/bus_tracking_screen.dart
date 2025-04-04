@@ -70,7 +70,7 @@ class _BusTrackingScreenState extends State<BusTrackingScreen> {
   }
 
   void _startLocationUpdates() {
-    _locationTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       _loadBusLocation();
     });
   }
@@ -329,14 +329,14 @@ class RouteMapPainter extends CustomPainter {
           // Add direction arrow
           if (currentLocation.containsKey('direction')) {
             final arrowSize = busSize * 1.2; // Increased arrow size
+            final bool isAtFirstStop = i == 0;
+            final bool isAtLastStop = i == busStops.length - 1;
             final arrowCenter = Offset(
               stopCenter.dx,
-              stopCenter.dy + (busSize * 0.6) // Changed from minus to plus to move arrow below
+              stopCenter.dy + (busSize * (isAtFirstStop || (!isAtLastStop && currentLocation['direction'] != 0) ? 0.6 : -0.6)) // Adjust position based on direction
             );
             
-            final bool isAtFirstStop = i == 0;
             final Path directionArrowPath = Path();
-            
             if (isAtFirstStop) {
               // Draw downward pointing arrow at first stop
               directionArrowPath
@@ -355,8 +355,8 @@ class RouteMapPainter extends CustomPainter {
                   arrowCenter.dy - arrowSize * 0.2
                 )
                 ..close();
-            } else {
-              // Draw upward pointing arrow for other stops
+            } else if (isAtLastStop) {
+              // Draw upward pointing arrow at last stop
               directionArrowPath
                 ..moveTo(
                   arrowCenter.dx,
@@ -373,6 +373,46 @@ class RouteMapPainter extends CustomPainter {
                   arrowCenter.dy + arrowSize * 0.2
                 )
                 ..close();
+            } else {
+              // For intermediate stops, use the direction from route_service
+              final bool isForward = currentLocation['direction'] == 0;
+              if (isForward) {
+                // Draw upward pointing arrow
+                directionArrowPath
+                  ..moveTo(
+                    arrowCenter.dx,
+                    arrowCenter.dy - arrowSize * 0.5
+                  )
+                  ..lineTo(
+                    arrowCenter.dx - arrowSize * 0.3,
+                    arrowCenter.dy + arrowSize * 0.2
+                  )
+                  ..quadraticBezierTo(
+                    arrowCenter.dx,
+                    arrowCenter.dy,
+                    arrowCenter.dx + arrowSize * 0.3,
+                    arrowCenter.dy + arrowSize * 0.2
+                  )
+                  ..close();
+              } else {
+                // Draw downward pointing arrow
+                directionArrowPath
+                  ..moveTo(
+                    arrowCenter.dx,
+                    arrowCenter.dy + arrowSize * 0.5
+                  )
+                  ..lineTo(
+                    arrowCenter.dx - arrowSize * 0.3,
+                    arrowCenter.dy - arrowSize * 0.2
+                  )
+                  ..quadraticBezierTo(
+                    arrowCenter.dx,
+                    arrowCenter.dy,
+                    arrowCenter.dx + arrowSize * 0.3,
+                    arrowCenter.dy - arrowSize * 0.2
+                  )
+                  ..close();
+              }
             }
 
             // Add outline to make arrow more visible

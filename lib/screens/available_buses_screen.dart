@@ -129,6 +129,7 @@ class _AvailableBusesScreenState extends State<AvailableBusesScreen> {
                             ),
                           );
                         },
+                        stops: (bus['allStops'] as List).cast<String>(),
                       ),
                     );
                   },
@@ -221,6 +222,7 @@ class BusCard extends StatelessWidget {
   final String departureTime;
   final String arrivalTime;
   final VoidCallback onTap;
+  final List<String> stops; // Add stops parameter
 
   const BusCard({
     super.key,
@@ -228,6 +230,7 @@ class BusCard extends StatelessWidget {
     required this.departureTime,
     required this.arrivalTime,
     required this.onTap,
+    required this.stops, // Add stops to constructor
   });
 
   @override
@@ -251,49 +254,102 @@ class BusCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  busNumber,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1A1A1A),
+                const Icon(
+                  Icons.directions_bus,
+                  color: Color(0xFF5CB338),
+                  size: 24,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        busNumber,
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Departure: $departureTime',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: const Color(0xFF666666),
+                        ),
+                      ),
+                      Text(
+                        'Arrival: $arrivalTime',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: const Color(0xFF666666),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF5CB338).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Available',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFF5CB338),
-                    ),
-                  ),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Color(0xFF5CB338),
+                  size: 20,
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildTimeInfo('Departure', departureTime),
-                _buildTimeInfo('Arrival', arrivalTime),
-              ],
+            const SizedBox(height: 12),
+            Text(
+              'Route Stops:',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF1A1A1A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 40,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: stops.length,
+                itemBuilder: (context, index) {
+                  return Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          stops[index],
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: const Color(0xFF5CB338),
+                          ),
+                        ),
+                      ),
+                      if (index < stops.length - 1)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(
+                            Icons.arrow_forward,
+                            size: 12,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
 
   Widget _buildTimeInfo(String label, String time) {
     return Column(
@@ -318,4 +374,4 @@ class BusCard extends StatelessWidget {
       ],
     );
   }
-}
+
